@@ -1,0 +1,33 @@
+{
+  "name": "garmin-mcp",
+  "version": "0.3.0",
+  "description": "MCP server for the Garmin Connect Personal API (read-only access to your own Garmin data)",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "garmin-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "node src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test 'test/**/*.test.ts'",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@garmin/fitsdk": "21.218.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "fflate": "0.8.3",
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "typescript": "7.0.2"
+  }
+}
