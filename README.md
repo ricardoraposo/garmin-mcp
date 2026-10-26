@@ -89,7 +89,7 @@ from `garmin_get_heart_rate_zones`, and per-lap power and cadence from the
 
 ```mermaid
 flowchart LR
-  C["Claude<br/>claude.ai · Desktop · Code"] -- "MCP + your API key in a header" --> S["garmin-mcp<br/>on your Vercel or local"]
+  C["Claude<br/>claude.ai · Desktop · Code"] -- "MCP + your API key in a header" --> S["garmin-mcp<br/>public instance, your Vercel, or local"]
   S -- "API key → 24h token" --> G["Garmin Personal API"]
 ```
 
@@ -107,7 +107,7 @@ flowchart LR
 
 | Where | How it runs | Steps |
 | --- | --- | --- |
-| claude.ai, Claude Desktop, and Cowork | On your Vercel, as a custom connector, no secrets on the server | [1](#1-get-your-garmin-api-key) → [2](#2-use-it-as-a-custom-connector-on-claudeai) |
+| claude.ai, Claude Desktop, and Cowork | As a custom connector, on the public instance or your own Vercel | [1](#1-get-your-garmin-api-key) → [2](#2-use-it-as-a-custom-connector-on-claudeai) |
 | Claude Code | On your computer, over stdio | [1](#1-get-your-garmin-api-key) → [3](#3-or-run-it-locally-claude-code-and-claude-desktop) |
 | Claude Desktop (no hosting) | On your computer, over stdio | [1](#1-get-your-garmin-api-key) → [3](#3-or-run-it-locally-claude-code-and-claude-desktop) |
 
@@ -140,16 +140,35 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://personal.connectapi.gar
 
 ## 2. Use it as a custom connector on claude.ai
 
-The connector runs on your Vercel account (the free Hobby plan is enough), and
-Claude calls it from Anthropic's infrastructure. Once set up, it works on
-claude.ai, Claude Desktop, and Cowork.
+As a connector, the server runs on the internet and Claude calls it from
+Anthropic's infrastructure. Once set up, it works on claude.ai, Claude Desktop,
+and Cowork.
 
-**No secrets live on Vercel.** Your Garmin API key stays in the Claude
+**The server stores no secrets.** Your Garmin API key stays in the Claude
 connector, which sends it in the `Authorization` header of every call. The
 server uses the key to get a token from Garmin, keeps the token in memory only,
-and renews it when needed.
+and renews it when needed. That's why one server can be shared: each key only
+ever sees its own data.
 
-### 2.1 Deploy to Vercel
+### 2.1 Pick a server
+
+**Option A: use the public instance (quickest).** No setup at all. Use this URL
+in the next step:
+
+```
+https://garmin-mcp-delta.vercel.app/mcp
+```
+
+> [!NOTE]
+> The public instance is run by the author of this repo, on a free Vercel plan,
+> with no uptime guarantee. Your key passes through it on every request. It's
+> kept in memory only and never stored or logged, but you're trusting a server
+> you don't control. Vercel's request logs record each call's IP address and
+> time. Garmin describes the Personal API as meant for individual use. If any of
+> that bothers you, or you'll use the connector every day, pick option B.
+
+**Option B: deploy your own copy to Vercel.** Same code, on your own account
+(the free Hobby plan is enough), so your key only goes to a server you control.
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fricardoraposo%2Fgarmin-mcp&project-name=garmin-mcp&repository-name=garmin-mcp)
 
@@ -162,7 +181,8 @@ and renews it when needed.
    curl https://YOUR-PROJECT.vercel.app/healthz
    ```
 
-   It should reply `{"ok":true,"name":"garmin-mcp"}`.
+   It should reply `{"ok":true,"name":"garmin-mcp"}`. Your connector URL is
+   that address with `/mcp` at the end.
 
 <details>
 <summary>Prefer the Vercel CLI?</summary>
@@ -194,7 +214,7 @@ npx vercel git connect
    | Field | Value |
    | --- | --- |
    | Name | `Garmin` |
-   | MCP server URL | `https://YOUR-PROJECT.vercel.app/mcp` |
+   | MCP server URL | `https://garmin-mcp-delta.vercel.app/mcp`, or your own deployment's URL ending in `/mcp` |
    | Authentication | **No sign-in** |
 
 3. Open **Request headers** and add one header:
@@ -232,14 +252,14 @@ account. If you don't see it, use local mode (step 3).
 
 | Symptom | Likely cause | What to do |
 | --- | --- | --- |
-| Claude says it couldn't connect | URL without `/mcp` at the end | Use `https://YOUR-PROJECT.vercel.app/mcp` |
+| Claude says it couldn't connect | URL without `/mcp` at the end | Make sure the URL ends in `/mcp` |
 | "Couldn't connect to the server" | The header never arrived: it was missing, left optional and empty, or authentication isn't **No sign-in** | Remove the connector and add it again following step 2.2 |
 | `401` "Send your Garmin Personal API key" | Header missing or without `ApiKey ` | Remove the connector and add it again |
 | `401` "Garmin rejected this Personal API key" | Wrong, revoked, or expired key | Create a new one (step 1), then remove and re-add the connector |
 | "Today" data empty late at night | Your Garmin profile has no time zone | Add an `X-Garmin-Timezone` header, e.g. `America/New_York` |
 
 A key that Garmin rejects is blocked on the server for 5 minutes; after fixing
-it, wait that long or redeploy.
+it, wait that long (or redeploy, if it's your own server).
 
 ### Security
 
@@ -247,8 +267,8 @@ it, wait that long or redeploy.
   the server's memory. It never goes to an environment variable, disk, or log.
 - Garmin decides who gets in: the server exchanges the key for a token before
   anything else, and an invalid key gets a 401.
-- Each key sees only its own data. Someone who finds your deployment's URL can
-  only use it with **their** key, reading **their** data.
+- Each key sees only its own data. Anyone using the same server, the public
+  instance or yours, can only use it with **their** key, reading **their** data.
 - The server is read-only: the Personal API has no write endpoints.
 - Remote mode has no download tool, so nothing is saved on the server's disk.
 
